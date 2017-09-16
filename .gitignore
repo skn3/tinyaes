@@ -1,0 +1,8 @@
+
+*.bak
+*.buildv*
+*.products
+
+.DS_Store
+
+/desktop.ini
