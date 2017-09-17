@@ -6,7 +6,7 @@ Using std..
 
 Function Main:Void()
 	Local value := "Φello world"
-	Local key := "cat"'DOGwoofMEOW12"
+	Local key := "catDOGwoofMEOW12"
 	Local encrypted := AESEncrypt(value, key)
 	Local decrypted := AESDecrypt(encrypted, key)
 	
