@@ -129,6 +129,7 @@ Function ProcessWithString:String(encrypt:Bool, unicode:Bool, input:String, key:
 	Local result := bufferOutput.PeekString(0)
 	
 	'cleanup
+	bufferInput.Discard()
 	bufferOutput.Discard()
 	
 	'woot :D
