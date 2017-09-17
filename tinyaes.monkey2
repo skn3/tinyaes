@@ -11,8 +11,8 @@ Using libc..
 Using std.memory
 Using std.stringio
 Using monkey.math
- 
-Extern
+
+Extern Private
  
 Function AES_ECB_encrypt:Void(input:UByte Ptr, key:UByte Ptr, output:UByte Ptr, length:UInt)	
 Function AES_ECB_decrypt:Void(input:UByte Ptr, key:UByte Ptr, output:UByte Ptr, length:UInt)
@@ -20,7 +20,7 @@ Function AES_CBC_encrypt_buffer:Void(output:UByte Ptr, input:UByte Ptr, length:U
 Function AES_CBC_decrypt_buffer:Void(output:UByte Ptr, input:UByte Ptr, length:UInt, key:UByte Ptr, iv:UByte Ptr)
 	
 Private
-
+	
 Const BLOCK_SIZE := 128
 Const PAD_CHAR := String.FromChar(0)
 Const KEY_SIZE := BLOCK_SIZE / 8
@@ -45,16 +45,18 @@ Function FillBuffer:Void(buffer:DataBuffer, value:UByte)
 	Next
 End
 
-Function BufferFromString:DataBuffer(value:String, unicode:Bool)
+Function BufferFromString:DataBuffer(value:String, unicode:Bool, minSize:Int=0)
 	Local buffer:DataBuffer
 	
 	If unicode
 		'copy wide chars too
-		buffer = New DataBuffer(value.CStringLength)
+		buffer = New DataBuffer(Max(minSize, value.CStringLength))
+		FillBuffer(buffer, 0)
 		buffer.PokeString(0, value)
 	Else
 		'just a byte buffer
-		buffer = New DataBuffer(value.Length)
+		buffer = New DataBuffer(Max(minSize, value.Length))
+		FillBuffer(buffer, 0)
 		
 		For Local index := 0 Until value.Length
 			buffer.PokeUByte(index, value[index])
@@ -66,8 +68,8 @@ Function BufferFromString:DataBuffer(value:String, unicode:Bool)
 End
 
 Function ProcessWithBuffer:DataBuffer(encrypt:Bool, unicode:Bool, input:DataBuffer, key:String, keySize:Int)
-	'verify the key
-	Local bufferKey := BufferFromString(key, unicode)
+	'verify the key (and also allow key padding)
+	Local bufferKey := BufferFromString(key, unicode, keySize)
 	If bufferKey.Length <> keySize
 		'simple check for unicode in key
 		If bufferKey.Length <> key.Length
@@ -149,10 +151,32 @@ Class AESError Extends Throwable
 End
 
 'glue/api code
+#rem monkeydoc Encrypt a monkey string
+
+Encrypts any string supported by monkey.
+
+@param input Can include unicode characters.
+
+@param key Should be no larger then 16 bytes in length. Be warned, if non-ascii characters are used they will take up two bytes each.
+
+@return The encrypted result in ASCII format.
+
+#end
 Function AESEncrypt:String(input:String, key:String)
 	Return ProcessWithString(True, True, input, key, KEY_SIZE)
 End
 
+#rem monkeydoc Decrypt a monkey string
+
+Decrypts a string stored in ASCII format. Wide characters will be ignored!
+
+@param input Should be in ASCII format
+
+@param key Should be no larger then 16 bytes in length. Be warned, if non-ascii characters are used they will take up two bytes each.
+
+@return The decrypted result in monkey string format.
+
+#end
 Function AESDecrypt:String(input:String, key:String)
 	Return ProcessWithString(False, True, input, key, KEY_SIZE)
 End

@@ -1,0 +1,69 @@
+<!doctype html>
+
+<html>
+
+<head>
+
+	<meta charset="utf-8">
+
+	<link rel="stylesheet" href="../../../../docs/style.css">
+
+	<script>
+	
+	function openDocsPage( page ){
+
+		if( page.indexOf( '#' )!=-1 ){
+			
+			var url='../../../'+page.replace( ':','/docs/__MANPAGES__/' ).replace( /\#/g,'.md.html#' );
+				
+		}else{
+			
+			var url='../../../'+page.replace( ':','/docs/__PAGES__/' ).replace( /\./g,'-' )+'.html';
+		}
+
+		//alert( 'page='+page+', url='+url );
+			
+		document.location.href=url;
+		
+		return false;
+	}
+	
+	</script>
+
+</head>
+
+<body class="docs_body">
+
+<!-- CONTENT -->
+
+<i>tinyaes:tinyaes</i>
+<table class="mx2docs">
+<tr class="mx2docs">
+<th style="text-align:left">Classes </th>
+<th style="text-align:left"></th>
+</tr>
+<tr class="mx2docs">
+<td class="mx2docs" style="text-align:left"><a href="javascript:void('tinyaes:tinyaes-AESError')" onclick="openDocsPage('tinyaes:tinyaes-AESError')">AESError</a> </td>
+<td class="mx2docs" style="text-align:left"></td>
+</tr>
+</table>
+<table class="mx2docs">
+<tr class="mx2docs">
+<th style="text-align:left">Functions </th>
+<th style="text-align:left"></th>
+</tr>
+<tr class="mx2docs">
+<td class="mx2docs" style="text-align:left"><a href="javascript:void('tinyaes:tinyaes-AESDecrypt')" onclick="openDocsPage('tinyaes:tinyaes-AESDecrypt')">AESDecrypt</a> </td>
+<td class="mx2docs" style="text-align:left">Decrypt a monkey string </td>
+</tr>
+<tr class="mx2docs">
+<td class="mx2docs" style="text-align:left"><a href="javascript:void('tinyaes:tinyaes-AESEncrypt')" onclick="openDocsPage('tinyaes:tinyaes-AESEncrypt')">AESEncrypt</a> </td>
+<td class="mx2docs" style="text-align:left">Encrypt a monkey string </td>
+</tr>
+</table>
+
+<!-- END -->
+
+</body>
+
+</html>
