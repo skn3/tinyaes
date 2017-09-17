@@ -2,6 +2,7 @@ Namespace tinyaes
  
 #Import "<libc>"
 #Import "<std>"
+#Import "<monkey>"
 
 #Import "lib/aes.h"
 #Import "lib/aes.c"
@@ -9,6 +10,7 @@ Namespace tinyaes
 Using libc.. 
 Using std.memory
 Using std.stringio
+Using monkey.math
  
 Extern
  
@@ -24,16 +26,18 @@ Const PAD_CHAR := String.FromChar(0)
 Const KEY_SIZE := BLOCK_SIZE / 8
 
 'helpers
-Function PadString:String(input:String, size:Int)
-	'get pad size and see if we need to do any padding
-	Local difference := size - (input.Length Mod size)
-	If difference = 0
-		Return input
-	Endif
-	
-	'do pad
-	Return input+PAD_CHAR.Dup(size-difference)
+#rem
+Function PrintBuffer:Void(buffer:DataBuffer, label:String="buffer")
+	Local build := label+" = "
+	For Local index := 0 Until buffer.Length
+		If index > 0
+			build += ", "
+		Endif
+		build += Hex(buffer.PeekUByte(index))
+	Next
+	Print build
 End
+#end
 
 Function FillBuffer:Void(buffer:DataBuffer, value:UByte)
 	For Local index := 0 Until buffer.Length
@@ -41,75 +45,92 @@ Function FillBuffer:Void(buffer:DataBuffer, value:UByte)
 	Next
 End
 
-Function PrintBuffer:Void(buffer:DataBuffer, label:String="buffer")
-	For Local index := 0 Until buffer.Length
-		Print label+"("+index+")="+Hex(buffer.PeekUByte(index))
-	Next
+Function BufferFromString:DataBuffer(value:String, unicode:Bool)
+	Local buffer:DataBuffer
+	
+	If unicode
+		'copy wide chars too
+		buffer = New DataBuffer(value.CStringLength)
+		buffer.PokeString(0, value)
+	Else
+		'just a byte buffer
+		buffer = New DataBuffer(value.Length)
+		
+		For Local index := 0 Until value.Length
+			buffer.PokeUByte(index, value[index])
+		Next
+	Endif
+	
+	'toot!
+	Return buffer
 End
 
-Function ProcessChunks:String(encrypt:Bool, input:String, key:String, keySize:Int)
-	'verify the key length
-	If key.Length <> keySize
-		Throw New AESError("invalid key size")
-	Endif
-	
-	If encrypt
-		Print "AESEncrypt"
-	Else
-		Print "AESDecrypt"
-	Endif
-	
-	Print "input = "+input
-	Print "input.Length = "+input.Length
-	
-	'create key buffer
-	Local bufferKey := New DataBuffer(keySize)
-	bufferKey.PokeString(0, key)
-	
-	Print "[key]"
-	PrintBuffer(bufferKey,"key")
-	
-	'created padded text
-	Local paddedText := PadString(input, keySize)
-	Local bufferInput := New DataBuffer(keySize)
-	Local bufferOutput := New DataBuffer(keySize)
-	Local chunks := paddedText.Length / keySize
-	
-	Print "chunks = "+chunks
-	Print "paddedText = "+paddedText
-	
-	Local buildString:String
-	For Local chunk := 0 Until chunks
-		Local chunkString := input.Mid(chunk*keySize, keySize)
-		Print "chunkString = "+chunkString
-		Print "chunkString.Length = "+chunkString.Length
-		Print "chunkString.CStringLength = "+chunkString.CStringLength
-		
-		FillBuffer(bufferInput, 0)
-		chunkString.ToCString(bufferInput.Data, keySize)
-		
-		Print "[input]"
-		PrintBuffer(bufferInput,"input")
-		
-		If encrypt
-			AES_ECB_encrypt(bufferInput.Data, bufferKey.Data, bufferOutput.Data, keySize)
-			
-			'bufferOutput.CopyTo(bufferInput, 0, 0, keySize)
-			'AES_ECB_decrypt(bufferInput.Data, bufferKey.Data, bufferOutput.Data, keySize)
+Function ProcessWithBuffer:DataBuffer(encrypt:Bool, unicode:Bool, input:DataBuffer, key:String, keySize:Int)
+	'verify the key
+	Local bufferKey := BufferFromString(key, unicode)
+	If bufferKey.Length <> keySize
+		'simple check for unicode in key
+		If bufferKey.Length <> key.Length
+			Throw New AESError("invalid key size (possible unicode in key)")
 		Else
-			AES_ECB_decrypt(bufferInput.Data, bufferKey.Data, bufferOutput.Data, keySize)
+			Throw New AESError("invalid key size")
+		Endif
+	Endif
+		
+	'create chunk buffers
+	Local bufferChunk := New DataBuffer(keySize)
+	Local bufferAES := New DataBuffer(keySize)
+	
+	'calculate some stuff
+	Local chunksTotal:Int = Ceil(Float(input.Length) / keySize)
+	
+	'create output buffer
+	Local bufferOutput := New DataBuffer(chunksTotal * keySize)
+	
+	'iterate chunks
+	For Local chunk := 0 Until chunksTotal
+		Local chunkOffset := (chunk*keySize)
+		Local chunkSize := Min(keySize, input.Length-chunkOffset)
+		
+		'empty and fill the chunk buffer
+		FillBuffer(bufferChunk, 0)
+		input.CopyTo(bufferChunk, chunkOffset, 0, chunkSize)
+		
+		'AES time
+		If encrypt
+			AES_ECB_encrypt(bufferChunk.Data, bufferKey.Data, bufferAES.Data, keySize)
+		Else
+			AES_ECB_decrypt(bufferChunk.Data, bufferKey.Data, bufferAES.Data, keySize)
 		Endif
 		
-		Print "[output]"
-		PrintBuffer(bufferOutput,"output")
-		
-		For Local index := 0 Until keySize
-			buildString += String.FromChar(bufferOutput.PeekUByte(index))
-		Next
-		'buildString += String.FromCString(bufferOutput.Data, keySize)
+		'dump chunk aes into output
+		bufferAES.CopyTo(bufferOutput, 0, chunkOffset, keySize)
 	Next
 	
-	Return buildString
+	'cleanup
+	bufferChunk.Discard()
+	bufferAES.Discard()
+	bufferKey.Discard()
+	
+	'woot :D
+	Return bufferOutput
+End
+
+Function ProcessWithString:String(encrypt:Bool, unicode:Bool, input:String, key:String, keySize:Int)
+	'create input buffer (if we are decrypting then this will never be in unicode)
+	Local bufferInput := BufferFromString(input, encrypt And unicode)
+	
+	'process and fetch output buffer
+	Local bufferOutput := ProcessWithBuffer(encrypt, unicode, bufferInput, key, keySize)
+	
+	'convert the output into a string
+	Local result := bufferOutput.PeekString(0)
+	
+	'cleanup
+	bufferOutput.Discard()
+	
+	'woot :D
+	Return result
 End
 	
 Public
@@ -129,9 +150,9 @@ End
 
 'glue/api code
 Function AESEncrypt:String(input:String, key:String)
-	Return ProcessChunks(True, input, key, KEY_SIZE)
+	Return ProcessWithString(True, True, input, key, KEY_SIZE)
 End
 
 Function AESDecrypt:String(input:String, key:String)
-	Return ProcessChunks(False, input, key, KEY_SIZE)
+	Return ProcessWithString(False, True, input, key, KEY_SIZE)
 End
